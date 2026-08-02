@@ -1,0 +1,67 @@
+<!--
+  Replace the existing <script> block at the bottom of index.html
+  (the one starting with "EMAILJS SETUP" / const EMAILJS_PUBLIC_KEY ...)
+  with the code below. It talks to the Node backend instead of EmailJS,
+  and sends to both naveen.navalarch@gmail.com and sharmila57angular@gmail.com
+  (that recipient list lives server-side in server.js, not here).
+-->
+<script>
+// ── CONTACT FORM → BACKEND ─────────────────────────────────
+// Set this to your deployed backend URL (see README.md, step 4-5)
+const BACKEND_URL = 'https://xr-builders-contact.onrender.com/api/contact';
+
+function sendContactEmail(){
+  const name    = document.getElementById('contactName').value.trim();
+  const email   = document.getElementById('contactEmail').value.trim();
+  const org     = document.getElementById('contactOrg').value.trim();
+  const inquiry = document.getElementById('contactInquiry').value;
+  const message = document.getElementById('contactMessage').value.trim();
+
+  if(!name){    alert('Please enter your name.');              return; }
+  if(!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
+                alert('Please enter a valid email address.');  return; }
+  if(!message){ alert('Please enter a message.');              return; }
+
+  const btn = document.getElementById('submitBtn');
+  btn.disabled   = true;
+  btn.textContent = 'Sending…';
+  btn.style.opacity = '0.7';
+
+  fetch(BACKEND_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name,
+      email,
+      organisation: org,
+      inquiryType: inquiry,
+      message
+    })
+  })
+    .then(async (res) => {
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to send message.');
+
+      btn.textContent  = 'Message Sent ✓';
+      btn.style.opacity = '1';
+      btn.style.background = 'var(--neon-green)';
+      document.getElementById('form-success').style.display = 'block';
+      ['contactName','contactEmail','contactOrg','contactMessage'].forEach(id=>{
+        document.getElementById(id).value = '';
+      });
+      setTimeout(()=>{
+        btn.disabled = false;
+        btn.textContent = 'Send Message →';
+        btn.style.background = 'var(--neon-cyan)';
+        document.getElementById('form-success').style.display = 'none';
+      }, 6000);
+    })
+    .catch(err => {
+      console.error('Contact form error:', err);
+      btn.disabled = false;
+      btn.textContent = 'Send Message →';
+      btn.style.opacity = '1';
+      alert('Failed to send message. Please email us directly at contact@xrbuilders.net');
+    });
+}
+</script>
