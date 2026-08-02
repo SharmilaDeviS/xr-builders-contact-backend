@@ -9,15 +9,24 @@ const nodemailer = require('nodemailer');
 const rateLimit = require('express-rate-limit');
 
 const app = express();
+
+// Allow production domains + localhost (any port)
 app.use(cors({
-  origin: [
-    'https://xrbuilders.net',
-    'https://www.xrbuilders.net',
-    'http://localhost:3000',
-    'http://localhost:60496'   // ← add this
-  ]
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true); // allow file://
+    if (origin.startsWith('http://localhost')) return callback(null, true);
+    const allowedOrigins = [
+      'https://xrbuilders.net',
+      'https://www.xrbuilders.net',
+      'http://localhost:60496'
+    ];
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('Not allowed by CORS'));
+  }
 }));
-           // In production, restrict this to your domain (see README)
+
 app.use(express.json());
 
 // Basic abuse protection: max 5 submissions per IP every 15 minutes
@@ -27,16 +36,18 @@ const contactLimiter = rateLimit({
   message: { error: 'Too many submissions. Please try again later.' },
 });
 
+// ✅ Global transporter (created once)
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
-    user: process.env.GMAIL_USER,          // e.g. contact@xrbuilders.net (must be a Gmail / Google Workspace address)
-    pass: process.env.GMAIL_APP_PASSWORD,  // 16-character App Password, NOT your normal Gmail password
+    user: process.env.GMAIL_USER,          // must be Gmail / Workspace address
+    pass: process.env.GMAIL_APP_PASSWORD,  // 16-character App Password
   },
 });
 
 const RECIPIENTS = 'naveen.navalarch@gmail.com, sharmila57angular@gmail.com';
 
+// Contact form endpoint
 app.post('/api/contact', contactLimiter, async (req, res) => {
   const { name, email, organisation, inquiryType, message } = req.body || {};
 
@@ -61,13 +72,13 @@ app.post('/api/contact', contactLimiter, async (req, res) => {
     html: `
       <h2 style="font-family:sans-serif;color:#0a1628;">New Contact Form Submission — XR Builders</h2>
       <table style="font-family:sans-serif;font-size:14px;border-collapse:collapse;">
-        <tr><td style="padding:4px 12px 4px 0;"><strong>Name</strong></td><td>${escapeHtml(name)}</td></tr>
-        <tr><td style="padding:4px 12px 4px 0;"><strong>Email</strong></td><td>${escapeHtml(email)}</td></tr>
-        <tr><td style="padding:4px 12px 4px 0;"><strong>Organisation</strong></td><td>${escapeHtml(organisation || 'Not provided')}</td></tr>
-        <tr><td style="padding:4px 12px 4px 0;"><strong>Inquiry Type</strong></td><td>${escapeHtml(inquiryType || 'General Inquiry')}</td></tr>
+        <tr><td><strong>Name</strong></td><td>${escapeHtml(name)}</td></tr>
+        <tr><td><strong>Email</strong></td><td>${escapeHtml(email)}</td></tr>
+        <tr><td><strong>Organisation</strong></td><td>${escapeHtml(organisation || 'Not provided')}</td></tr>
+        <tr><td><strong>Inquiry Type</strong></td><td>${escapeHtml(inquiryType || 'General Inquiry')}</td></tr>
       </table>
-      <p style="font-family:sans-serif;font-size:14px;"><strong>Message:</strong></p>
-      <p style="font-family:sans-serif;font-size:14px;white-space:pre-wrap;">${escapeHtml(message)}</p>
+      <p><strong>Message:</strong></p>
+      <p style="white-space:pre-wrap;">${escapeHtml(message)}</p>
     `,
   };
 
@@ -80,7 +91,23 @@ app.post('/api/contact', contactLimiter, async (req, res) => {
   }
 });
 
-// Simple health check — useful when deploying to Render/Railway to confirm it's alive
+// ✅ Debug route to test email sending directly
+app.get('/api/test-email', async (req, res) => {
+  try {
+    await transporter.sendMail({
+      from: `"XR Builders Website" <${process.env.GMAIL_USER}>`,
+      to: process.env.GMAIL_USER, // send to yourself
+      subject: 'Test Email',
+      text: 'This is a test email from XR Builders backend.'
+    });
+    res.json({ success: true, message: 'Test email sent.' });
+  } catch (err) {
+    console.error('Test email error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Health check
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
 function escapeHtml(str) {
