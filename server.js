@@ -10,13 +10,22 @@ const rateLimit = require('express-rate-limit');
 
 const app = express();
 app.use(cors({
-  origin: [
-    'https://xrbuilders.net',
-    'https://www.xrbuilders.net',
-    'http://localhost:3000',
-    null   // allow local file:// testing
-  ]
-}));              // In production, restrict this to your domain (see README)
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true); // allow requests with no origin (like file://)
+    const allowedOrigins = [
+      'https://xrbuilders.net',
+      'https://www.xrbuilders.net',
+      'http://localhost:3000',
+      'https://xr-builders-contact-backend.onrender.com/api/contact'
+    ];
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    } else {
+      return callback(new Error('Not allowed by CORS'));
+    }
+  }
+}));
+           // In production, restrict this to your domain (see README)
 app.use(express.json());
 
 // Basic abuse protection: max 5 submissions per IP every 15 minutes
