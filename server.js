@@ -10,7 +10,12 @@ const rateLimit = require('express-rate-limit');
 
 const app = express();
 app.use(cors({
-  origin: ['https://www.xrbuilders.net', 'https://xrbuilders.net', 'http://localhost:3000']
+  origin: [
+    'https://xrbuilders.net',
+    'https://www.xrbuilders.net',
+    'http://localhost:3000',
+    null   // allow local file:// testing
+  ]
 }));              // In production, restrict this to your domain (see README)
 app.use(express.json());
 
