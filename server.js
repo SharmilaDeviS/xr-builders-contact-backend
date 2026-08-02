@@ -10,20 +10,12 @@ const rateLimit = require('express-rate-limit');
 
 const app = express();
 app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin) return callback(null, true); // allow requests with no origin (like file://)
-    const allowedOrigins = [
-      'https://xrbuilders.net',
-      'https://www.xrbuilders.net',
-      'http://localhost:3000',
-      'https://xr-builders-contact-backend.onrender.com/api/contact'
-    ];
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    } else {
-      return callback(new Error('Not allowed by CORS'));
-    }
-  }
+  origin: [
+    'https://xrbuilders.net',
+    'https://www.xrbuilders.net',
+    'http://localhost:3000',
+    'http://localhost:60496'   // ← add this
+  ]
 }));
            // In production, restrict this to your domain (see README)
 app.use(express.json());
