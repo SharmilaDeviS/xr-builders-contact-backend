@@ -9,7 +9,9 @@ const nodemailer = require('nodemailer');
 const rateLimit = require('express-rate-limit');
 
 const app = express();
-app.use(cors());               // In production, restrict this to your domain (see README)
+app.use(cors({
+  origin: ['https://www.xrbuilders.net', 'https://xrbuilders.net', 'http://localhost:3000']
+}));              // In production, restrict this to your domain (see README)
 app.use(express.json());
 
 // Basic abuse protection: max 5 submissions per IP every 15 minutes
