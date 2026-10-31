@@ -1,53 +1,65 @@
-// XR Builders — Contact Form Backend
-// Sends every submission to BOTH naveen.navalarch@gmail.com and sharmila57angular@gmail.com
-// Uses your existing free Gmail account via an "App Password" (no paid service needed).
+// XR Builders — Contact Form Backend (Render free plan compatible)
+// Sends mail through Brevo's HTTPS API, because Render's free plan blocks SMTP ports (25/465/587).
 
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const nodemailer = require('nodemailer');
 const rateLimit = require('express-rate-limit');
 
 const app = express();
 
-// Allow production domains + localhost (any port)
+// Render runs behind a proxy: needed so rate-limiting sees each visitor's real IP
+app.set('trust proxy', 1);
+
+// Allow production domains + localhost (any port, e.g. Angular on :4200)
+const allowedOrigins = [
+  'https://xrbuilders.net',
+  'https://www.xrbuilders.net',
+];
 app.use(cors({
   origin: function (origin, callback) {
-    if (!origin) return callback(null, true); // allow file://
+    if (!origin) return callback(null, true);
     if (origin.startsWith('http://localhost')) return callback(null, true);
-    const allowedOrigins = [
-      'https://xrbuilders.net',
-      'https://www.xrbuilders.net',
-      'http://localhost:60496',
-      'https://www.xrbuilders.net/'
-    ];
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
+    if (allowedOrigins.includes(origin)) return callback(null, true);
     return callback(new Error('Not allowed by CORS'));
   }
 }));
 
-app.use(express.json());
+app.use(express.json({ limit: '50kb' }));
 
-// Basic abuse protection: max 5 submissions per IP every 15 minutes
+// Max 5 submissions per IP every 15 minutes
 const contactLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 5,
+  limit: 5,
   message: { error: 'Too many submissions. Please try again later.' },
 });
 
-// ✅ Global transporter (created once)
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.GMAIL_USER,          // must be Gmail / Workspace address
-    pass: process.env.GMAIL_APP_PASSWORD,  // 16-character App Password
-  },
-});
+const RECIPIENTS = [
+  'naveen.navalarch@gmail.com',
+  'sharmila57angular@gmail.com',
+  'naveen120197@gmail.com'
+];
 
-const RECIPIENTS =
-'naveen.navalarch@gmail.com, sharmila57angular@gmail.com, naveen120197@gmail.com';
+// Send an email through Brevo (HTTPS, not SMTP)
+async function sendMail({ subject, text, html, replyTo }) {
+  const r = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'api-key': process.env.BREVO_API_KEY,
+      'Content-Type': 'application/json',
+      accept: 'application/json',
+    },
+    body: JSON.stringify({
+      sender: { name: 'XR Builders Website', email: process.env.SENDER_EMAIL },
+      to: RECIPIENTS.map((email) => ({ email })),
+      replyTo: { email: replyTo },
+      subject,
+      textContent: text,
+      htmlContent: html,
+    }),
+  });
+  if (!r.ok) throw new Error(`Brevo ${r.status}: ${await r.text()}`);
+}
 
 // Contact form endpoint
 app.post('/api/contact', contactLimiter, async (req, res) => {
@@ -75,60 +87,42 @@ app.post('/api/contact', contactLimiter, async (req, res) => {
     return res.status(400).json({ error: 'Mobile number must contain 6 to 15 digits only.' });
   }
 
-  const mailOptions = {
-    from: `"XR Builders Website" <${process.env.GMAIL_USER}>`,
-    to: RECIPIENTS,
-    replyTo: email,
-    subject: `XR Builders Inquiry: ${inquiryType || 'General Inquiry'}`,
-    text:
-      `Name: ${name}\n` +
-      `Email: ${email}\n` +
-      `Organisation: ${organisation || 'Not provided'}\n` +
-      `Country Code: ${trimmedCountryCode || 'Not provided'}\n` +
-      `Mobile Number: ${trimmedMobileNumber || 'Not provided'}\n` +
-      `Inquiry Type: ${inquiryType || 'General Inquiry'}\n\n` +
-      `Message:\n${message}`,
-    html: `
-      <h2 style="font-family:sans-serif;color:#0a1628;">New Contact Form Submission — XR Builders</h2>
-      <table style="font-family:sans-serif;font-size:14px;border-collapse:collapse;">
-        <tr><td><strong>Name</strong></td><td>${escapeHtml(name)}</td></tr>
-        <tr><td><strong>Email</strong></td><td>${escapeHtml(email)}</td></tr>
-        <tr><td><strong>Organisation</strong></td><td>${escapeHtml(organisation || 'Not provided')}</td></tr>
-        <tr><td><strong>Country Code</strong></td><td>${escapeHtml(trimmedCountryCode || 'Not provided')}</td></tr>
-        <tr><td><strong>Mobile Number</strong></td><td>${escapeHtml(trimmedMobileNumber || 'Not provided')}</td></tr>
-        <tr><td><strong>Inquiry Type</strong></td><td>${escapeHtml(inquiryType || 'General Inquiry')}</td></tr>
-      </table>
-      <p><strong>Message:</strong></p>
-      <p style="white-space:pre-wrap;">${escapeHtml(message)}</p>
-    `,
-  };
+  const subject = `XR Builders Inquiry: ${String(inquiryType || 'General Inquiry').replace(/[\r\n]+/g, ' ')}`;
+
+  const text =
+    `Name: ${name}\n` +
+    `Email: ${email}\n` +
+    `Organisation: ${organisation || 'Not provided'}\n` +
+    `Country Code: ${trimmedCountryCode}\n` +
+    `Mobile Number: ${trimmedMobileNumber || 'Not provided'}\n` +
+    `Inquiry Type: ${inquiryType || 'General Inquiry'}\n\n` +
+    `Message:\n${message}`;
+
+  const html = `
+    <h2 style="font-family:sans-serif;color:#0a1628;">New Contact Form Submission — XR Builders</h2>
+    <table style="font-family:sans-serif;font-size:14px;border-collapse:collapse;">
+      <tr><td><strong>Name</strong></td><td>${escapeHtml(name)}</td></tr>
+      <tr><td><strong>Email</strong></td><td>${escapeHtml(email)}</td></tr>
+      <tr><td><strong>Organisation</strong></td><td>${escapeHtml(organisation || 'Not provided')}</td></tr>
+      <tr><td><strong>Country Code</strong></td><td>${escapeHtml(trimmedCountryCode)}</td></tr>
+      <tr><td><strong>Mobile Number</strong></td><td>${escapeHtml(trimmedMobileNumber || 'Not provided')}</td></tr>
+      <tr><td><strong>Inquiry Type</strong></td><td>${escapeHtml(inquiryType || 'General Inquiry')}</td></tr>
+    </table>
+    <p><strong>Message:</strong></p>
+    <p style="white-space:pre-wrap;">${escapeHtml(message)}</p>
+  `;
 
   try {
-    await transporter.sendMail(mailOptions);
+    await sendMail({ subject, text, html, replyTo: email });
     res.status(200).json({ success: true, message: 'Email sent successfully.' });
   } catch (err) {
-    console.error('Email send error:', err);
+    console.error('Email send error:', err.message);
     res.status(500).json({ error: 'Failed to send email. Please try again later.' });
   }
 });
 
-// ✅ Debug route to test email sending directly
-app.get('/api/test-email', async (req, res) => {
-  try {
-    await transporter.sendMail({
-      from: `"XR Builders Website" <${process.env.GMAIL_USER}>`,
-      to: process.env.GMAIL_USER, // send to yourself
-      subject: 'Test Email',
-      text: 'This is a test email from XR Builders backend.'
-    });
-    res.json({ success: true, message: 'Test email sent.' });
-  } catch (err) {
-    console.error('Test email error:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Health check
+// Root + health check (so opening the URL in a browser shows something)
+app.get('/', (req, res) => res.send('XR Builders contact API is running.'));
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
 function escapeHtml(str) {
