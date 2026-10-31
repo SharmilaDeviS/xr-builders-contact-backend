@@ -46,7 +46,7 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-const RECIPIENTS = 'naveen.navalarch@gmail.com, sharmila57angular@gmail.com';
+const RECIPIENTS = 'naveen.navalarch@gmail.com, sharmila57angular@gmail.com, contact@xrbuilders.net';
 
 // Contact form endpoint
 app.post('/api/contact', contactLimiter, async (req, res) => {
