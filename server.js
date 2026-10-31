@@ -18,7 +18,8 @@ app.use(cors({
     const allowedOrigins = [
       'https://xrbuilders.net',
       'https://www.xrbuilders.net',
-      'http://localhost:60496'
+      'http://localhost:60496',
+      'https://www.xrbuilders.net/'
     ];
     if (allowedOrigins.includes(origin)) {
       return callback(null, true);
@@ -49,13 +50,28 @@ const RECIPIENTS = 'naveen.navalarch@gmail.com, sharmila57angular@gmail.com';
 
 // Contact form endpoint
 app.post('/api/contact', contactLimiter, async (req, res) => {
-  const { name, email, organisation, inquiryType, message } = req.body || {};
+  const { name, email, organisation, countryCode = '+', mobileNumber = '', inquiryType, message } = req.body || {};
 
   if (!name || !email || !message) {
     return res.status(400).json({ error: 'Name, email, and message are required.' });
   }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return res.status(400).json({ error: 'Please provide a valid email address.' });
+  }
+  if (typeof countryCode !== 'string' || countryCode.length > 4) {
+    return res.status(400).json({ error: 'Country code must be a string no longer than 4 characters.' });
+  }
+  if (typeof mobileNumber !== 'string' || mobileNumber.length > 15) {
+    return res.status(400).json({ error: 'Mobile number must be no longer than 15 digits.' });
+  }
+
+  const trimmedCountryCode = countryCode.trim() || '+';
+  const trimmedMobileNumber = mobileNumber.trim();
+  if (trimmedCountryCode !== '+' && !/^\+?\d{1,3}$/.test(trimmedCountryCode)) {
+    return res.status(400).json({ error: 'Country code must contain 1 to 3 digits and an optional leading +.' });
+  }
+  if (trimmedMobileNumber && !/^\d{6,15}$/.test(trimmedMobileNumber)) {
+    return res.status(400).json({ error: 'Mobile number must contain 6 to 15 digits only.' });
   }
 
   const mailOptions = {
@@ -67,6 +83,8 @@ app.post('/api/contact', contactLimiter, async (req, res) => {
       `Name: ${name}\n` +
       `Email: ${email}\n` +
       `Organisation: ${organisation || 'Not provided'}\n` +
+      `Country Code: ${trimmedCountryCode || 'Not provided'}\n` +
+      `Mobile Number: ${trimmedMobileNumber || 'Not provided'}\n` +
       `Inquiry Type: ${inquiryType || 'General Inquiry'}\n\n` +
       `Message:\n${message}`,
     html: `
@@ -75,6 +93,8 @@ app.post('/api/contact', contactLimiter, async (req, res) => {
         <tr><td><strong>Name</strong></td><td>${escapeHtml(name)}</td></tr>
         <tr><td><strong>Email</strong></td><td>${escapeHtml(email)}</td></tr>
         <tr><td><strong>Organisation</strong></td><td>${escapeHtml(organisation || 'Not provided')}</td></tr>
+        <tr><td><strong>Country Code</strong></td><td>${escapeHtml(trimmedCountryCode || 'Not provided')}</td></tr>
+        <tr><td><strong>Mobile Number</strong></td><td>${escapeHtml(trimmedMobileNumber || 'Not provided')}</td></tr>
         <tr><td><strong>Inquiry Type</strong></td><td>${escapeHtml(inquiryType || 'General Inquiry')}</td></tr>
       </table>
       <p><strong>Message:</strong></p>

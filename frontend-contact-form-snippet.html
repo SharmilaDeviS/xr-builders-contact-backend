@@ -14,6 +14,8 @@ function sendContactEmail(){
   const name    = document.getElementById('contactName').value.trim();
   const email   = document.getElementById('contactEmail').value.trim();
   const org     = document.getElementById('contactOrg').value.trim();
+  const countryCode = document.getElementById('countryCode').value.trim() || '+';
+  const mobileNumber = document.getElementById('contactMobile').value.trim();
   const inquiry = document.getElementById('contactInquiry').value;
   const message = document.getElementById('contactMessage').value.trim();
 
@@ -34,6 +36,8 @@ function sendContactEmail(){
       name,
       email,
       organisation: org,
+      countryCode,
+      mobileNumber,
       inquiryType: inquiry,
       message
     })
@@ -46,7 +50,7 @@ function sendContactEmail(){
       btn.style.opacity = '1';
       btn.style.background = 'var(--neon-green)';
       document.getElementById('form-success').style.display = 'block';
-      ['contactName','contactEmail','contactOrg','contactMessage'].forEach(id=>{
+      ['contactName','contactEmail','contactOrg','countryCode','contactMobile','contactMessage'].forEach(id=>{
         document.getElementById(id).value = '';
       });
       setTimeout(()=>{
