@@ -5,6 +5,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
+const nodemailer = require('nodemailer');
 
 const app = express();
 
@@ -40,26 +41,13 @@ const RECIPIENTS = [
   'naveen120197@gmail.com'
 ];
 
-// Send an email through Brevo (HTTPS, not SMTP)
-async function sendMail({ subject, text, html, replyTo }) {
-  const r = await fetch('https://api.brevo.com/v3/smtp/email', {
-    method: 'POST',
-    headers: {
-      'api-key': process.env.BREVO_API_KEY,
-      'Content-Type': 'application/json',
-      accept: 'application/json',
-    },
-    body: JSON.stringify({
-      sender: { name: 'XR Builders Website', email: process.env.SENDER_EMAIL },
-      to: RECIPIENTS.map((email) => ({ email })),
-      replyTo: { email: replyTo },
-      subject,
-      textContent: text,
-      htmlContent: html,
-    }),
-  });
-  if (!r.ok) throw new Error(`Brevo ${r.status}: ${await r.text()}`);
-}
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.GMAIL_USER,
+    pass: process.env.GMAIL_APP_PASSWORD
+  }
+});
 
 // Contact form endpoint
 app.post('/api/contact', contactLimiter, async (req, res) => {
@@ -113,7 +101,14 @@ app.post('/api/contact', contactLimiter, async (req, res) => {
   `;
 
   try {
-    await sendMail({ subject, text, html, replyTo: email });
+    await transporter.sendMail({
+  from: `"XR Builders Website" <${process.env.GMAIL_USER}>`,
+  to: RECIPIENTS.join(','),
+  replyTo: email,
+  subject,
+  text,
+  html
+});
     res.status(200).json({ success: true, message: 'Email sent successfully.' });
   } catch (err) {
     console.error('Email send error:', err.message);
